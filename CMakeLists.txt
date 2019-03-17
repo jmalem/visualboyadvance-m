@@ -1,3 +1,17 @@
+if(COMMAND cmake_policy)
+    cmake_policy(SET CMP0003 NEW) # link to full path of libs
+    cmake_policy(SET CMP0005 NEW) # escapes in add_definitions
+endif()
+
+option(ENABLE_VCPKG "Install dependencies for Visual Studio using vcpkg" ON)
+option(ENABLE_NLS "Enable translations" ON)
+
+# hook into the visual studio package manager before project declaration
+if(MSVC AND ENABLE_VCPKG)
+    include(${PROJECT_SOURCE_DIR}/cmake/VCPKG.cmake)
+    set(ENABLE_NLS OFF)
+endif()
+
 project(VBA-M C CXX)
 
 cmake_minimum_required(VERSION 2.8.12)
@@ -12,11 +26,6 @@ endif()
 
 set(ALL_TARGETS fex visualboyadvance-m vbamcore vbam)
 
-if(COMMAND cmake_policy)
-    cmake_policy(SET CMP0003 NEW) # link to full path of libs
-    cmake_policy(SET CMP0005 NEW) # escapes in add_definitions
-endif()
-
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 #Output all binaries at top level
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR})
@@ -24,7 +33,6 @@ set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR})
 option(ENABLE_SDL "Build the SDL port" OFF)
 option(ENABLE_WX "Build the wxWidgets port" ON)
 option(ENABLE_DEBUGGER "Enable the debugger" ON)
-option(ENABLE_NLS "Enable translations" ON)
 option(ENABLE_ASAN "Enable -fsanitize=<option>, address by default, requires debug build" OFF)
 
 option(VBAM_STATIC "Try to link all libraries statically" OFF)
@@ -38,6 +46,16 @@ if(VBAM_STATIC)
 endif()
 
 set(ASM_DEFAULT OFF)
+
+set(ENABLE_BUNDLED_LIBS_DEFAULT OFF)
+
+# on visual studio use all bundled stuff
+if(MSVC)
+    set(ENABLE_BUNDLED_LIBS_DEFAULT ON)
+endif()
+
+# XXX: do some stuff with this
+#option(ENABLE_BUNDLED_LIBS "Use bundled libraries instead of system libraries" ${ENABLE_BUNDLED_LIBS_DEFAULT})
 
 # use ccache if available, and not already enabled on the command line
 # but not with ninja and msys ccache on msys2
@@ -66,7 +84,9 @@ endif()
 # turn asm on by default on 32bit x86
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "[xX]86|i[3-9]86|[aA][mM][dD]64")
     if(CMAKE_C_SIZEOF_DATA_PTR EQUAL 4) # 32 bit
-        set(ASM_DEFAULT ON)
+        if(NOT (MSVC AND CMAKE_TOOLCHAIN_FILE MATCHES vcpkg))
+            set(ASM_DEFAULT ON)
+        endif()
         set(X86_32 ON)
     else()
         set(AMD64 ON)
@@ -204,7 +224,7 @@ add_definitions(${SDL2_DEFINITIONS})
 if(ENABLE_LINK)
     # msys2 does not have static sfml libs atm
     # while on mxe we use static libs
-    if(WIN32 AND ((NOT (MINGW AND MSYS)) OR CMAKE_TOOLCHAIN_FILE MATCHES mxe))
+    if(WIN32 AND ((NOT (MINGW AND MSYS)) OR CMAKE_TOOLCHAIN_FILE MATCHES mxe) AND NOT CMAKE_TOOLCHAIN_FILE MATCHES vcpkg)
         set(SFML_STATIC_LIBRARIES TRUE)
     endif()
     find_package(SFML 2 COMPONENTS network system REQUIRED)

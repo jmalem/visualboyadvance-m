@@ -6,6 +6,7 @@ src/wx/cmdtab.cpp
 src/wx/wxvbam.xrs
 build/*
 build32/*
+vsbuild/*
 dependencies/*
 .vs/*
 *.o
